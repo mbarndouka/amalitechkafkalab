@@ -33,6 +33,16 @@ services:
     volumes:
       - ./database/schema.sql:/docker-entrypoint-initdb.d/init-schema.sql
 
+  grafana:
+    image: grafana/grafana-oss:latest
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    depends_on:
+      - postgres
+
   kafka-ui:
      image: provectuslabs/kafka-ui:latest
      ports:

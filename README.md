@@ -46,11 +46,16 @@ docker compose logs -f consumer producer
 
 | Service | URL / Connection | Credentials |
 |---------|------------------|-------------|
+| **Grafana** | http://localhost:3000 | User: `admin`, Password: `admin` |
 | **Kafka UI** | http://localhost:8080 | No auth required |
 | **PostgreSQL** (from host) | `psql -h localhost -p 5432` | User: `postgres`, Password: `postgres`, DB: `heartbeat_db` |
 | **PostgreSQL** (from container) | `docker compose exec -T postgres psql -U postgres -d heartbeat_db` | — |
 | **Kafka Bootstrap** (host) | `localhost:9092` | For external clients |
 | **Kafka Bootstrap** (container) | `kafka:29092` | For services inside Docker network |
+
+### Grafana Monitoring Dashboard
+
+![Grafana Monitoring](./Grafana-monitoring.png)
 
 ---
 
