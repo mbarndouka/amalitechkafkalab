@@ -59,6 +59,10 @@ docker compose logs -f consumer producer
 By default, exposed service ports bind to `127.0.0.1` through `HOST_BIND_ADDRESS`.
 This keeps Postgres, Kafka, Kafka UI, and Grafana reachable from your machine without exposing them on every network interface.
 
+Kafka auto-topic creation is disabled. The `kafka-init` service creates
+`KAFKA_TOPIC_NAME` explicitly using `KAFKA_TOPIC_PARTITIONS` and
+`KAFKA_TOPIC_REPLICATION_FACTOR` from `.env`.
+
 ### Grafana Monitoring Dashboard
 
 ![Grafana Monitoring](./Grafana-monitoring.png)
@@ -140,8 +144,9 @@ WHERE recorded_at > NOW() - INTERVAL '60 seconds';
 - Check Kafka logs: `docker compose logs kafka | grep -i error`
 
 **Kafka topic not auto-created:**
-- Verify Kafka config has `KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"` in `docker-compose.yml`
-- First producer message will trigger topic creation; wait 10–15 seconds
+- Topic auto-creation is intentionally disabled.
+- Check the one-shot topic initializer: `docker compose logs kafka-init`
+- Confirm the configured topic exists in Kafka UI or with `kafka-topics --list`
 
 **Database connection errors:**
 - Postgres container might still be initializing; wait ~5 seconds after `docker compose up -d`

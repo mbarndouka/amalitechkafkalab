@@ -38,6 +38,20 @@ def optional_int(name: str, default: int) -> int:
         raise ConfigError(f"Environment variable {name} must be an integer") from exc
 
 
+def optional_bool(name: str, default: bool) -> bool:
+    raw_value = os.getenv(name)
+    if raw_value is None or raw_value.strip() == "":
+        return default
+
+    normalized = raw_value.strip().lower()
+    if normalized in {"1", "true", "yes", "on"}:
+        return True
+    if normalized in {"0", "false", "no", "off"}:
+        return False
+
+    raise ConfigError(f"Environment variable {name} must be true or false")
+
+
 def load_settings(require_database: bool = False) -> Mapping[str, Any]:
     """Extract and validate runtime settings from environment variables."""
     settings = {
@@ -45,6 +59,15 @@ def load_settings(require_database: bool = False) -> Mapping[str, Any]:
         "KAFKA_TOPIC_NAME": require_env("KAFKA_TOPIC_NAME"),
         "SIMULATION_INTERVAL": optional_float("SIMULATION_INTERVAL_SECONDS", 1.0),
         "TOTAL_CUSTOMERS": optional_int("TOTAL_CUSTOMERS", 5),
+        "KAFKA_PRODUCER_ACKS": os.getenv("KAFKA_PRODUCER_ACKS", "all"),
+        "KAFKA_PRODUCER_ENABLE_IDEMPOTENCE": optional_bool(
+            "KAFKA_PRODUCER_ENABLE_IDEMPOTENCE", True
+        ),
+        "KAFKA_PRODUCER_RETRIES": optional_int("KAFKA_PRODUCER_RETRIES", 10),
+        "KAFKA_PRODUCER_DELIVERY_TIMEOUT_MS": optional_int(
+            "KAFKA_PRODUCER_DELIVERY_TIMEOUT_MS", 120000
+        ),
+        "KAFKA_PRODUCER_LINGER_MS": optional_int("KAFKA_PRODUCER_LINGER_MS", 20),
     }
 
     if require_database:
