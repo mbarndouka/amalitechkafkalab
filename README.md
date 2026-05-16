@@ -27,6 +27,9 @@ A real-time, event-driven consumer heartbeat data pipeline using Kafka, PostgreS
 ```zsh
 cd /home/mbarndouka/Documents/amalitechkafkalab
 
+# Create local runtime config and replace placeholder passwords before production use
+cp .env.example .env
+
 # Build container images
 docker compose build
 
@@ -46,10 +49,10 @@ docker compose logs -f consumer producer
 
 | Service | URL / Connection | Credentials |
 |---------|------------------|-------------|
-| **Grafana** | http://localhost:3000 | User: `admin`, Password: `admin` |
+| **Grafana** | http://localhost:3000 | Uses `GRAFANA_ADMIN_USER` / `GRAFANA_ADMIN_PASSWORD` from `.env` |
 | **Kafka UI** | http://localhost:8080 | No auth required |
-| **PostgreSQL** (from host) | `psql -h localhost -p 5432` | User: `postgres`, Password: `postgres`, DB: `heartbeat_db` |
-| **PostgreSQL** (from container) | `docker compose exec -T postgres psql -U postgres -d heartbeat_db` | — |
+| **PostgreSQL** (from host) | `psql -h localhost -p 5432` | Uses `DB_USER`, `DB_PASSWORD`, and `DB_NAME` from `.env` |
+| **PostgreSQL** (from container) | `docker compose exec -T postgres sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB"'` | — |
 | **Kafka Bootstrap** (host) | `localhost:9092` | For external clients |
 | **Kafka Bootstrap** (container) | `kafka:29092` | For services inside Docker network |
 
@@ -98,7 +101,7 @@ WHERE recorded_at > NOW() - INTERVAL '60 seconds';
     ├── docker-compose.yml          # Orchestrates all services
     ├── Dockerfile                  # Python app image (consumer + producer)
     ├── pyproject.toml              # Dependencies & package config
-    ├── .env                        # Local environment overrides
+    ├── .env.example                # Safe template for local environment overrides
     ├── README.md                   # This file
     │
     ├── database/
@@ -169,4 +172,3 @@ docker compose down -v       # Stop containers and remove volumes (deletes Postg
 ### Connect directly to Kafka (exec into producer/consumer container)
 ```zsh
 docker compose exec producer /bin/bash
-

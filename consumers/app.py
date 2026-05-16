@@ -85,7 +85,7 @@ def continuous_polling_stream(consumer: Consumer, db_pool) -> None:
 
 def main() -> None:
     """System bootstrap boundary layer."""
-    config = load_settings()
+    config = load_settings(require_database=True)
     print(f"[*] Initializing Functional Ingestion Stream. Group: 'heartbeat-processor-group-v1'")
 
     consumer_client = initialize_consumer(config)
