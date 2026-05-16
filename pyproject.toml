@@ -1,0 +1,45 @@
+[project]
+name = "heartbeat-monitoring-system"
+version = "0.1.0"
+description = "A real-time, event-driven consumer heartbeat data pipeline using Kafka and PostgreSQL."
+authors = [
+    { name = "Mbarndouka Oumarou Marius", email = "marius@example.com" }
+]
+readme = "README.md"
+requires-python = ">=3.10"
+classifiers = [
+    "Programming Language :: Python :: 3.10",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: System :: Monitoring"
+]
+dependencies = [
+    "confluent-kafka>=2.3.0",    # High-performance enterprise Kafka client
+    "psycopg2-binary>=2.9.9",   # PostgreSQL database adapter (C-optimized engine)
+    "pydantic>=2.6.0",          # Strict runtime data validation and schema management
+    "python-dotenv>=1.0.1"      # Environment configuration isolation management
+]
+
+[project.optional-dependencies]
+dev = [
+    "black>=24.1.0",            # Rigid code style formatting
+    "isort>=5.13.0",            # Deterministic import sorting
+    "flake8>=7.0.0",            # Linting and syntactic static analysis
+    "pytest>=8.0.0"             # Test harness framework for simulating failures
+]
+
+[build-system]
+requires = ["setuptools>=61.0.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["core*"]
+exclude = ["databse*"]
+
+[tool.black]
+line-length = 88
+target-version = ['py310']
+include = '\.pyi?$'
+
+[tool.isort]
+profile = "black"
+line_length = 88
