@@ -33,7 +33,7 @@ cp .env.example .env
 # Build container images
 docker compose build
 
-# Start infrastructure (Zookeeper, Kafka, Postgres, Consumer, Producer, Kafka-UI)
+# Start infrastructure (Zookeeper, Kafka, Postgres, Consumer, Producer, Kafka UI, Grafana)
 docker compose up -d
 
 # Verify services are running
@@ -55,6 +55,9 @@ docker compose logs -f consumer producer
 | **PostgreSQL** (from container) | `docker compose exec -T postgres sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB"'` | — |
 | **Kafka Bootstrap** (host) | `localhost:9092` | For external clients |
 | **Kafka Bootstrap** (container) | `kafka:29092` | For services inside Docker network |
+
+By default, exposed service ports bind to `127.0.0.1` through `HOST_BIND_ADDRESS`.
+This keeps Postgres, Kafka, Kafka UI, and Grafana reachable from your machine without exposing them on every network interface.
 
 ### Grafana Monitoring Dashboard
 
@@ -168,6 +171,9 @@ docker compose logs -f --tail=50 kafka      # Kafka broker logs
 docker compose down          # Stop containers
 docker compose down -v       # Stop containers and remove volumes (deletes Postgres data!)
 ```
+
+PostgreSQL data is stored in the named Docker volume `postgres_data`, so normal
+container restarts and `docker compose down` preserve records.
 
 ### Connect directly to Kafka (exec into producer/consumer container)
 ```zsh
