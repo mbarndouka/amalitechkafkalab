@@ -20,9 +20,11 @@ services:
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: hearth_bd
+      POSTGRES_DB: heartbeat_db
     ports:
-      - "5433:5432"
+      - "5432:5432"
+    volumes:
+      - ./database/schema.sql:/docker-entrypoint-initdb.d/init-schema.sql
 
   kafka-ui:
     image: provectuslabs/kafka-ui:latest
