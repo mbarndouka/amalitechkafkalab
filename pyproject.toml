@@ -16,7 +16,8 @@ dependencies = [
     "confluent-kafka>=2.3.0",    # High-performance enterprise Kafka client
     "psycopg2-binary>=2.9.9",   # PostgreSQL database adapter (C-optimized engine)
     "pydantic>=2.6.0",          # Strict runtime data validation and schema management
-    "python-dotenv>=1.0.1"      # Environment configuration isolation management
+    "python-dotenv>=1.0.1",      # Environment configuration isolation management
+    "python-dotenv>=1.0.1"
 ]
 
 [project.optional-dependencies]

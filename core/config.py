@@ -6,7 +6,7 @@ from dotenv import load_dotenv
 env_path = Path(__file__).resolve().parent.parent / ".env"
 load_dotenv(dotenv_path=env_path)
 
-def load_setings() -> Mapping[str, Any]:
+def load_settings() -> Mapping[str, Any]:
     """Pure function that extracts, builds, and returns immutable config maps."""
     return {
         "KAFKA_BOOTSTRAP_SERVERS": os.getenv("KAFKA_BOOTSTRAP_SERVERS", "localhost:9092"),
