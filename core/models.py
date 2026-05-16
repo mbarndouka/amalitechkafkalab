@@ -6,13 +6,13 @@ from typing import NamedTuple, Optional
 
 class HeartbeatEvent(NamedTuple):
     event_id: str
-    costumer_id: str
+    customer_id: str
     heart_rate: int
     recorded_at: str
 
 class ProcessedHeartbeat(NamedTuple):
     event_id: str
-    costumer_id: str
+    customer_id: str
     heart_rate: int
     status: str    #NORMAL, WARNING, CRITICAL
     recorded_at: str
@@ -24,7 +24,7 @@ def create_heartbeat(customer_id: str, heart_rate: int) -> HeartbeatEvent:
 
     return HeartbeatEvent(
         event_id=str(uuid.uuid4()),
-        costumer_id=customer_id,
+        customer_id=customer_id,
         heart_rate=heart_rate,
         recorded_at=datetime.utcnow().isoformat() + "Z"
     )
