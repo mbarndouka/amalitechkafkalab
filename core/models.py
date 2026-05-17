@@ -1,7 +1,6 @@
-import datetime
 import uuid
 import json
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import NamedTuple, Optional
 
 class HeartbeatEvent(NamedTuple):
@@ -26,7 +25,7 @@ def create_heartbeat(customer_id: str, heart_rate: int) -> HeartbeatEvent:
         event_id=str(uuid.uuid4()),
         customer_id=customer_id,
         heart_rate=heart_rate,
-        recorded_at=datetime.utcnow().isoformat() + "Z"
+        recorded_at=datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
     )
 
 def serialize_heartbeat(heartbeat: HeartbeatEvent) -> bytes:

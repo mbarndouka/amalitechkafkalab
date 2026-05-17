@@ -187,6 +187,15 @@ docker compose logs -f --tail=50 producer   # Last 50 lines from producer
 docker compose logs -f --tail=50 kafka      # Kafka broker logs
 ```
 
+### Run tests
+```zsh
+python -m unittest discover -s tests -v
+
+# Optional Docker-backed end-to-end pipeline test
+docker compose up -d
+RUN_INTEGRATION_TESTS=1 python -m unittest discover -s tests -v
+```
+
 ### Run database migrations
 ```zsh
 docker compose up db-migrate
