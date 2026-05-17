@@ -81,6 +81,15 @@ initialization.
 
 ![Grafana Monitoring](./Grafana-monitoring.png)
 
+Grafana is provisioned from files in this repository:
+
+- Datasource: `grafana/provisioning/datasources/postgres.yml`
+- Dashboard: `grafana/dashboards/heartbeat-overview.json`
+- Alert rules: `grafana/provisioning/alerting/heartbeat-alerts.yml`
+
+The dashboard is named `Heartbeat Pipeline Overview`. Alert rules cover stalled
+ingestion and spikes in CRITICAL heartbeat records.
+
 ---
 
 ## Database Queries
@@ -124,6 +133,11 @@ WHERE recorded_at > NOW() - INTERVAL '60 seconds';
     ├── pyproject.toml              # Dependencies & package config
     ├── .env.example                # Safe template for local environment overrides
     ├── README.md                   # This file
+    ├── docs/
+    │   └── RUNBOOK.md              # Operational checks and incident response
+    ├── grafana/
+    │   ├── dashboards/             # Provisioned Grafana dashboard JSON
+    │   └── provisioning/           # Datasource, dashboard provider, alert rules
     │
     ├── database/
     │   ├── schema.sql              # PostgreSQL DDL (auto-loaded on fresh volumes)
@@ -185,6 +199,11 @@ docker compose up -d consumer
 docker compose logs -f --tail=50 consumer   # Last 50 lines from consumer
 docker compose logs -f --tail=50 producer   # Last 50 lines from producer
 docker compose logs -f --tail=50 kafka      # Kafka broker logs
+```
+
+### Open the runbook
+```zsh
+less docs/RUNBOOK.md
 ```
 
 ### Run tests

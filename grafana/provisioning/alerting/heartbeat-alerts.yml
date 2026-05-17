@@ -1,0 +1,115 @@
+apiVersion: 1
+
+groups:
+  - orgId: 1
+    name: heartbeat-pipeline
+    folder: Heartbeat Monitoring
+    interval: 1m
+    rules:
+      - uid: heartbeat-no-recent-records
+        title: No heartbeat records in last 2 minutes
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: heartbeat-postgres
+            model:
+              datasource:
+                type: postgres
+                uid: heartbeat-postgres
+              format: table
+              rawQuery: true
+              rawSql: "SELECT COUNT(*)::double precision AS value FROM heart_rate_logs WHERE recorded_at > NOW() - INTERVAL '2 minutes';"
+              refId: A
+          - refId: C
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: __expr__
+            model:
+              conditions:
+                - evaluator:
+                    params:
+                      - 1
+                    type: lt
+                  operator:
+                    type: and
+                  query:
+                    params:
+                      - A
+                  reducer:
+                    params: []
+                    type: last
+                  type: query
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: A
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: C
+              type: threshold
+        noDataState: Alerting
+        execErrState: Error
+        for: 2m
+        annotations:
+          summary: No heartbeat records have been persisted recently.
+          description: The producer, Kafka topic, consumer, or PostgreSQL insert path may be unhealthy.
+        labels:
+          severity: critical
+
+      - uid: heartbeat-critical-spike
+        title: Critical heartbeat spike
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: heartbeat-postgres
+            model:
+              datasource:
+                type: postgres
+                uid: heartbeat-postgres
+              format: table
+              rawQuery: true
+              rawSql: "SELECT COUNT(*)::double precision AS value FROM heart_rate_logs WHERE status = 'CRITICAL' AND recorded_at > NOW() - INTERVAL '5 minutes';"
+              refId: A
+          - refId: C
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: __expr__
+            model:
+              conditions:
+                - evaluator:
+                    params:
+                      - 10
+                    type: gt
+                  operator:
+                    type: and
+                  query:
+                    params:
+                      - A
+                  reducer:
+                    params: []
+                    type: last
+                  type: query
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: A
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: C
+              type: threshold
+        noDataState: OK
+        execErrState: Error
+        for: 1m
+        annotations:
+          summary: Critical heartbeat records are elevated.
+          description: More than 10 CRITICAL records were written in the last 5 minutes.
+        labels:
+          severity: warning

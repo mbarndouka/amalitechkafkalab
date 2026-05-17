@@ -1,0 +1,17 @@
+apiVersion: 1
+
+datasources:
+  - name: Heartbeat PostgreSQL
+    uid: heartbeat-postgres
+    type: postgres
+    access: proxy
+    url: ${DB_HOST}:${DB_PORT}
+    user: ${DB_USER}
+    secureJsonData:
+      password: ${DB_PASSWORD}
+    jsonData:
+      database: ${DB_NAME}
+      sslmode: disable
+      postgresVersion: 1600
+      timescaledb: false
+    editable: false
