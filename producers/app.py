@@ -1,16 +1,29 @@
-import sys
+import logging
 import time
 from typing import Any, List, Mapping
 from confluent_kafka import Producer
 from core.config import load_settings
+from core.logging import configure_logging
 from core.models import serialize_heartbeat, HeartbeatEvent
 from producers.generator import initialize_simulation_states, simulate_step, CustomerStates
+
+logger = logging.getLogger(__name__)
 
 
 def delivery_report_callback(err: Any, msg: Any) -> None:
     """Void logging side-effect callback function confirming message delivery."""
     if err is not None:
-        print(f"[-] Event transmission dispatch failure: {err}", file=sys.stderr)
+        metadata = {}
+        if msg is not None:
+            metadata = {
+                "topic": msg.topic(),
+                "partition": msg.partition(),
+                "offset": msg.offset(),
+            }
+        logger.error(
+            "kafka_delivery_failed",
+            extra={**metadata, "error": str(err)},
+        )
 
 
 def initialize_producer(config: Mapping[str, Any]) -> Producer:
@@ -28,7 +41,12 @@ def initialize_producer(config: Mapping[str, Any]) -> Producer:
     })
 
 
-def dispatch_events(producer: Producer, topic: str, events: List[HeartbeatEvent]) -> None:
+def dispatch_events(
+    producer: Producer,
+    topic: str,
+    events: List[HeartbeatEvent],
+    buffer_backoff_seconds: float,
+) -> None:
     """Functional iterative mapping function executing external broker writes."""
     for event in events:
         while True:
@@ -41,7 +59,16 @@ def dispatch_events(producer: Producer, topic: str, events: List[HeartbeatEvent]
                 )
                 break
             except BufferError:
+                logger.warning(
+                    "producer_queue_full",
+                    extra={
+                        "event_id": event.event_id,
+                        "customer_id": event.customer_id,
+                        "backoff_seconds": buffer_backoff_seconds,
+                    },
+                )
                 producer.poll(1.0)
+                time.sleep(buffer_backoff_seconds)
         producer.poll(0)
 
 
@@ -54,22 +81,38 @@ def streaming_loop(producer: Producer, config: dict, customer_ids: List[str], ba
     try:
         while True:
             events, current_states = simulate_step(customer_ids, baselines, current_states)
-            dispatch_events(producer, config["KAFKA_TOPIC_NAME"], events)
-            print(f"[+] Dispatched metrics batch for {len(events)} customers successfully.")
+            dispatch_events(
+                producer,
+                config["KAFKA_TOPIC_NAME"],
+                events,
+                config["PRODUCER_BUFFER_RETRY_BACKOFF_SECONDS"],
+            )
+            logger.info(
+                "heartbeat_batch_dispatched",
+                extra={"topic": config["KAFKA_TOPIC_NAME"], "batch_size": len(events)},
+            )
             time.sleep(config["SIMULATION_INTERVAL"])
     except KeyboardInterrupt:
-        print("\n[*] Intercepted termination signal. Initiating flush sequence...")
+        logger.info("producer_shutdown_requested")
         producer.flush(timeout=5.0)
-        print("[+] System gracefully offline.")
+        logger.info("producer_closed")
 
 
 def main() -> None:
     """Main execution boundary mapping configs directly into functional runtimes."""
     config = load_settings()
+    configure_logging(config["LOG_LEVEL"])
     producer = initialize_producer(config)
     customer_ids, baselines = initialize_simulation_states(config["TOTAL_CUSTOMERS"])
 
-    print(f"[*] Starting Functional Producer. Pipeline Destination Topic: {config['KAFKA_TOPIC_NAME']}")
+    logger.info(
+        "producer_starting",
+        extra={
+            "topic": config["KAFKA_TOPIC_NAME"],
+            "total_customers": config["TOTAL_CUSTOMERS"],
+            "simulation_interval_seconds": config["SIMULATION_INTERVAL"],
+        },
+    )
     # Kick off processing loop passing baseline metrics as the initial starting state
     streaming_loop(producer, config, customer_ids, baselines, baselines)
 

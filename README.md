@@ -67,6 +67,11 @@ The consumer uses manual Kafka offset commits. A heartbeat message is committed
 only after it has been written to PostgreSQL; if the database write fails, the
 consumer seeks back to the failed message and retries instead of marking it done.
 
+Producer, consumer, and healthcheck logs are emitted as single-line JSON. Use
+`LOG_LEVEL`, `CONSUMER_RETRY_BACKOFF_SECONDS`, `DB_CONNECT_RETRIES`,
+`DB_CONNECT_BACKOFF_SECONDS`, and `PRODUCER_BUFFER_RETRY_BACKOFF_SECONDS` in
+`.env` to tune runtime diagnostics and transient-failure retry behavior.
+
 ### Grafana Monitoring Dashboard
 
 ![Grafana Monitoring](./Grafana-monitoring.png)

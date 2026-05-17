@@ -98,6 +98,7 @@ services:
       kafka-init:
         condition: service_completed_successfully
     environment:
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
       KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_INTERNAL_BOOTSTRAP_SERVERS:-kafka:29092}
       KAFKA_TOPIC_NAME: ${KAFKA_TOPIC_NAME:?KAFKA_TOPIC_NAME is required}
       SIMULATION_INTERVAL_SECONDS: ${SIMULATION_INTERVAL_SECONDS:-1.0}
@@ -107,6 +108,7 @@ services:
       KAFKA_PRODUCER_RETRIES: ${KAFKA_PRODUCER_RETRIES:-10}
       KAFKA_PRODUCER_DELIVERY_TIMEOUT_MS: ${KAFKA_PRODUCER_DELIVERY_TIMEOUT_MS:-120000}
       KAFKA_PRODUCER_LINGER_MS: ${KAFKA_PRODUCER_LINGER_MS:-20}
+      PRODUCER_BUFFER_RETRY_BACKOFF_SECONDS: ${PRODUCER_BUFFER_RETRY_BACKOFF_SECONDS:-1.0}
     command: python -m producers.app
     healthcheck:
       test: ["CMD", "python", "-m", "core.healthcheck", "producer"]
@@ -124,8 +126,12 @@ services:
       postgres:
         condition: service_healthy
     environment:
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
       KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_INTERNAL_BOOTSTRAP_SERVERS:-kafka:29092}
       KAFKA_TOPIC_NAME: ${KAFKA_TOPIC_NAME:?KAFKA_TOPIC_NAME is required}
+      CONSUMER_RETRY_BACKOFF_SECONDS: ${CONSUMER_RETRY_BACKOFF_SECONDS:-2.0}
+      DB_CONNECT_RETRIES: ${DB_CONNECT_RETRIES:-5}
+      DB_CONNECT_BACKOFF_SECONDS: ${DB_CONNECT_BACKOFF_SECONDS:-2.0}
       DB_HOST: postgres
       DB_PORT: "5432"
       DB_NAME: ${DB_NAME:?DB_NAME is required}

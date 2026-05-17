@@ -55,10 +55,19 @@ def optional_bool(name: str, default: bool) -> bool:
 def load_settings(require_database: bool = False) -> Mapping[str, Any]:
     """Extract and validate runtime settings from environment variables."""
     settings = {
+        "LOG_LEVEL": os.getenv("LOG_LEVEL", "INFO"),
         "KAFKA_BOOTSTRAP_SERVERS": require_env("KAFKA_BOOTSTRAP_SERVERS"),
         "KAFKA_TOPIC_NAME": require_env("KAFKA_TOPIC_NAME"),
         "SIMULATION_INTERVAL": optional_float("SIMULATION_INTERVAL_SECONDS", 1.0),
         "TOTAL_CUSTOMERS": optional_int("TOTAL_CUSTOMERS", 5),
+        "CONSUMER_RETRY_BACKOFF_SECONDS": optional_float(
+            "CONSUMER_RETRY_BACKOFF_SECONDS", 2.0
+        ),
+        "DB_CONNECT_RETRIES": optional_int("DB_CONNECT_RETRIES", 5),
+        "DB_CONNECT_BACKOFF_SECONDS": optional_float("DB_CONNECT_BACKOFF_SECONDS", 2.0),
+        "PRODUCER_BUFFER_RETRY_BACKOFF_SECONDS": optional_float(
+            "PRODUCER_BUFFER_RETRY_BACKOFF_SECONDS", 1.0
+        ),
         "KAFKA_PRODUCER_ACKS": os.getenv("KAFKA_PRODUCER_ACKS", "all"),
         "KAFKA_PRODUCER_ENABLE_IDEMPOTENCE": optional_bool(
             "KAFKA_PRODUCER_ENABLE_IDEMPOTENCE", True

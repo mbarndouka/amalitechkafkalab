@@ -1,11 +1,14 @@
-import sys
+import logging
 import time
 from typing import Any, Mapping, Optional
 from confluent_kafka import Consumer, KafkaError, TopicPartition
 from core.config import load_settings
+from core.logging import configure_logging
 from core.models import deserialize_heartbeat
 from consumers.validator import clean_and_process
 from consumers.db_client import initialize_database_pool, execute_insert_transaction
+
+logger = logging.getLogger(__name__)
 
 
 def initialize_consumer(config: Mapping[str, Any]) -> Consumer:
@@ -24,6 +27,14 @@ def initialize_consumer(config: Mapping[str, Any]) -> Consumer:
     return consumer
 
 
+def message_metadata(raw_message: Any) -> dict[str, Any]:
+    return {
+        "topic": raw_message.topic(),
+        "partition": raw_message.partition(),
+        "offset": raw_message.offset(),
+    }
+
+
 def process_message_payload(raw_message: Any, db_pool) -> Optional[bool]:
     """
     Orchestration processing function handling pipeline sequencing while
@@ -37,7 +48,10 @@ def process_message_payload(raw_message: Any, db_pool) -> Optional[bool]:
 
     if raw_message.error():
         if raw_message.error().code() != KafkaError._PARTITION_EOF:
-            print(f"[-] Broker tracking anomaly noticed: {raw_message.error()}", file=sys.stderr)
+            logger.warning(
+                "kafka_message_error",
+                extra={**message_metadata(raw_message), "error": str(raw_message.error())},
+            )
         return None
 
     # Pipeline Chain Phase: Deserialize -> Filter Nulls -> Transform Purely -> Visual Feedback
@@ -45,19 +59,29 @@ def process_message_payload(raw_message: Any, db_pool) -> Optional[bool]:
     event = deserialize_heartbeat(raw_bytes)
 
     if event is None:
-        print(f"[-] Malformed packet intercepted and discarded at edge boundary.", file=sys.stderr)
+        logger.warning("malformed_message_discarded", extra=message_metadata(raw_message))
         return True
 
     # Invoke pure computation transformations
     processed_record = clean_and_process(event)
 
     # Render clear console outputs
-    print_ingestion_log(processed_record)
+    log_ingestion(processed_record, raw_message)
     # Persist record to Postgres (side-effect)
     try:
         execute_insert_transaction(db_pool, processed_record)
     except Exception as e:
-        print(f"[-] Failed to persist record to DB: {e}", file=sys.stderr)
+        logger.error(
+            "database_insert_failed",
+            extra={
+                **message_metadata(raw_message),
+                "event_id": processed_record.event_id,
+                "customer_id": processed_record.customer_id,
+                "status": processed_record.status,
+                "error": str(e),
+            },
+            exc_info=True,
+        )
         return False
 
     return True
@@ -74,11 +98,21 @@ def commit_processed_message(consumer: Consumer, raw_message: Any) -> bool:
             if partition.error is not None
         ]
         if failed_offsets:
-            print(f"[-] Kafka offset commit returned errors: {failed_offsets}", file=sys.stderr)
+            logger.error(
+                "kafka_offset_commit_returned_errors",
+                extra={
+                    **message_metadata(raw_message),
+                    "failed_offsets": failed_offsets,
+                },
+            )
             return False
         return True
     except Exception as e:
-        print(f"[-] Failed to commit Kafka offset: {e}", file=sys.stderr)
+        logger.error(
+            "kafka_offset_commit_failed",
+            extra={**message_metadata(raw_message), "error": str(e)},
+            exc_info=True,
+        )
         return False
 
 
@@ -90,54 +124,95 @@ def retry_message_later(consumer: Consumer, raw_message: Any, delay_seconds: flo
         raw_message.offset(),
     )
     consumer.seek(partition)
+    logger.warning(
+        "message_scheduled_for_retry",
+        extra={**message_metadata(raw_message), "delay_seconds": delay_seconds},
+    )
     time.sleep(delay_seconds)
 
 
-def print_ingestion_log(record: Any) -> None:
+def log_ingestion(record: Any, raw_message: Any) -> None:
     """Void side-effect wrapper displaying pipeline processing states."""
-    color_map = {"NORMAL": "\033[92m", "WARNING": "\033[93m", "CRITICAL": "\033[91m"}
-    reset_color = "\033[0m"
-    color = color_map.get(record.status, reset_color)
+    logger.info(
+        "heartbeat_processed",
+        extra={
+            **message_metadata(raw_message),
+            "event_id": record.event_id,
+            "customer_id": record.customer_id,
+            "heart_rate": record.heart_rate,
+            "status": record.status,
+            "recorded_at": record.recorded_at,
+        },
+    )
 
-    print(f"[Stream Consumer] ID: {record.event_id} | Client: {record.customer_id} | "
-          f"BPM: {record.heart_rate} | Status: {color}{record.status}{reset_color} | TS: {record.recorded_at}")
 
-
-def continuous_polling_stream(consumer: Consumer, db_pool) -> None:
+def continuous_polling_stream(
+    consumer: Consumer,
+    db_pool,
+    retry_backoff_seconds: float,
+) -> None:
     """
     Infinite processing loop reading streaming data inputs and updating
     runtime states entirely via deterministic function pipelines.
     """
     try:
         while True:
-            # Poll network sockets for active wire messages
-            msg = consumer.poll(timeout=1.0)
+            try:
+                # Poll network sockets for active wire messages
+                msg = consumer.poll(timeout=1.0)
+            except Exception as e:
+                logger.error(
+                    "kafka_poll_failed",
+                    extra={
+                        "error": str(e),
+                        "backoff_seconds": retry_backoff_seconds,
+                    },
+                    exc_info=True,
+                )
+                time.sleep(retry_backoff_seconds)
+                continue
+
             processing_result = process_message_payload(msg, db_pool)
 
             if processing_result is True:
                 if not commit_processed_message(consumer, msg):
-                    retry_message_later(consumer, msg)
+                    retry_message_later(consumer, msg, retry_backoff_seconds)
             elif processing_result is False:
-                retry_message_later(consumer, msg)
+                retry_message_later(consumer, msg, retry_backoff_seconds)
 
     except KeyboardInterrupt:
-        print("\n[*] Halting continuous processing pipeline workers...")
+        logger.info("consumer_shutdown_requested")
     finally:
         consumer.close()
-        print("[+] Stream handler fully offline.")
+        logger.info("consumer_closed")
 
 
 def main() -> None:
     """System bootstrap boundary layer."""
     config = load_settings(require_database=True)
-    print(f"[*] Initializing Functional Ingestion Stream. Group: 'heartbeat-processor-group-v1'")
+    configure_logging(config["LOG_LEVEL"])
+    logger.info(
+        "consumer_starting",
+        extra={
+            "consumer_group": "heartbeat-processor-group-v1",
+            "topic": config["KAFKA_TOPIC_NAME"],
+        },
+    )
 
     consumer_client = initialize_consumer(config)
 
     # Initialize DB pool for persistence
-    db_pool = initialize_database_pool(config["DB_DSN"])
+    db_pool = initialize_database_pool(
+        config["DB_DSN"],
+        max_retries=config["DB_CONNECT_RETRIES"],
+        backoff_seconds=config["DB_CONNECT_BACKOFF_SECONDS"],
+    )
 
-    continuous_polling_stream(consumer_client, db_pool)
+    continuous_polling_stream(
+        consumer_client,
+        db_pool,
+        retry_backoff_seconds=config["CONSUMER_RETRY_BACKOFF_SECONDS"],
+    )
 
 
 if __name__ == "__main__":

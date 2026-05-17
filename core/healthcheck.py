@@ -1,3 +1,4 @@
+import logging
 import sys
 from typing import Callable
 
@@ -5,6 +6,9 @@ import psycopg2
 from confluent_kafka.admin import AdminClient
 
 from core.config import load_settings
+from core.logging import configure_logging
+
+logger = logging.getLogger(__name__)
 
 
 def check_kafka() -> None:
@@ -33,16 +37,21 @@ CHECKS: dict[str, Callable[[], None]] = {
 
 
 def main() -> int:
+    configure_logging()
     check_name = sys.argv[1] if len(sys.argv) > 1 else ""
     check = CHECKS.get(check_name)
     if check is None:
-        print(f"Unknown healthcheck: {check_name}", file=sys.stderr)
+        logger.error("unknown_healthcheck", extra={"healthcheck": check_name})
         return 2
 
     try:
         check()
     except Exception as exc:
-        print(f"Healthcheck failed for {check_name}: {exc}", file=sys.stderr)
+        logger.error(
+            "healthcheck_failed",
+            extra={"healthcheck": check_name, "error": str(exc)},
+            exc_info=True,
+        )
         return 1
 
     return 0
