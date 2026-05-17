@@ -72,6 +72,11 @@ Producer, consumer, and healthcheck logs are emitted as single-line JSON. Use
 `DB_CONNECT_BACKOFF_SECONDS`, and `PRODUCER_BUFFER_RETRY_BACKOFF_SECONDS` in
 `.env` to tune runtime diagnostics and transient-failure retry behavior.
 
+Database changes are versioned under `database/migrations`. The `db-migrate`
+service runs those SQL files after PostgreSQL is healthy and before the
+consumer starts. Fresh volumes also load `database/schema.sql` during Postgres
+initialization.
+
 ### Grafana Monitoring Dashboard
 
 ![Grafana Monitoring](./Grafana-monitoring.png)
@@ -121,7 +126,8 @@ WHERE recorded_at > NOW() - INTERVAL '60 seconds';
     ├── README.md                   # This file
     │
     ├── database/
-    │   └── schema.sql              # PostgreSQL DDL (auto-loaded at startup)
+    │   ├── schema.sql              # PostgreSQL DDL (auto-loaded on fresh volumes)
+    │   └── migrations/             # Versioned SQL migrations for existing volumes
     │
     ├── core/
     │   ├── config.py               # Config loader (env vars → DSN & bootstrap servers)
@@ -160,6 +166,7 @@ WHERE recorded_at > NOW() - INTERVAL '60 seconds';
 **Database connection errors:**
 - Postgres container might still be initializing; wait ~5 seconds after `docker compose up -d`
 - Check Postgres logs: `docker compose logs postgres`
+- Check migration logs: `docker compose logs db-migrate`
 - Ensure `database/schema.sql` exists and is readable
 
 ---
@@ -178,6 +185,12 @@ docker compose up -d consumer
 docker compose logs -f --tail=50 consumer   # Last 50 lines from consumer
 docker compose logs -f --tail=50 producer   # Last 50 lines from producer
 docker compose logs -f --tail=50 kafka      # Kafka broker logs
+```
+
+### Run database migrations
+```zsh
+docker compose up db-migrate
+docker compose logs db-migrate
 ```
 
 ### Stop and clean up everything

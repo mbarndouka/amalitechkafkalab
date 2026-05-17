@@ -1,5 +1,3 @@
--- database/schema.sql
-
 CREATE TABLE IF NOT EXISTS heart_rate_logs (
     id SERIAL PRIMARY KEY,
     event_id UUID UNIQUE NOT NULL,
@@ -16,9 +14,8 @@ CREATE TABLE IF NOT EXISTS heart_rate_logs (
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
--- Optimize queries for specific customer history analysis (e.g., Dashboards)
 CREATE INDEX IF NOT EXISTS idx_customer_recorded_at
 ON heart_rate_logs (customer_id, recorded_at DESC);
 
--- Optimize queries searching for system-wide anomalies
-CREATE INDEX IF NOT EXISTS idx_status ON heart_rate_logs (status);
+CREATE INDEX IF NOT EXISTS idx_status
+ON heart_rate_logs (status);
