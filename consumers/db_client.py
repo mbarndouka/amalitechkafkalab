@@ -43,8 +43,6 @@ def execute_insert_transaction(db_pool: SimpleConnectionPool, record: ProcessedH
         with connection:
             with connection.cursor() as cursor:
                 cursor.execute(sql_query, params)
-    except Exception as db_error:
-        print(f"[-] Database persistence execution write crash: {db_error}")
     finally:
         # Always return the worker connection back to the reuse pool
         db_pool.putconn(connection)

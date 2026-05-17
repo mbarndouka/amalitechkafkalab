@@ -1,6 +1,7 @@
 import sys
-from typing import Any, Mapping
-from confluent_kafka import Consumer, KafkaError
+import time
+from typing import Any, Mapping, Optional
+from confluent_kafka import Consumer, KafkaError, TopicPartition
 from core.config import load_settings
 from core.models import deserialize_heartbeat
 from consumers.validator import clean_and_process
@@ -13,7 +14,8 @@ def initialize_consumer(config: Mapping[str, Any]) -> Consumer:
         'bootstrap.servers': config["KAFKA_BOOTSTRAP_SERVERS"],
         'group.id': 'heartbeat-processor-group-v1',
         'auto.offset.reset': 'earliest',
-        'enable.auto.commit': True,
+        'enable.auto.commit': False,
+        'enable.auto.offset.store': False,
 
         # FIX: Force the connection client to resolve strictly using IPv4
         'broker.address.family': 'v4'
@@ -22,18 +24,21 @@ def initialize_consumer(config: Mapping[str, Any]) -> Consumer:
     return consumer
 
 
-def process_message_payload(raw_message: Any, db_pool) -> None:
+def process_message_payload(raw_message: Any, db_pool) -> Optional[bool]:
     """
     Orchestration processing function handling pipeline sequencing while
     insulating pure transformation calculations from systemic stream tracking.
+
+    Returns True when the Kafka offset is safe to commit, False when the message
+    should be retried, and None when there is no offset to handle.
     """
     if raw_message is None:
-        return
+        return None
 
     if raw_message.error():
         if raw_message.error().code() != KafkaError._PARTITION_EOF:
             print(f"[-] Broker tracking anomaly noticed: {raw_message.error()}", file=sys.stderr)
-        return
+        return None
 
     # Pipeline Chain Phase: Deserialize -> Filter Nulls -> Transform Purely -> Visual Feedback
     raw_bytes = raw_message.value()
@@ -41,7 +46,7 @@ def process_message_payload(raw_message: Any, db_pool) -> None:
 
     if event is None:
         print(f"[-] Malformed packet intercepted and discarded at edge boundary.", file=sys.stderr)
-        return
+        return True
 
     # Invoke pure computation transformations
     processed_record = clean_and_process(event)
@@ -53,6 +58,39 @@ def process_message_payload(raw_message: Any, db_pool) -> None:
         execute_insert_transaction(db_pool, processed_record)
     except Exception as e:
         print(f"[-] Failed to persist record to DB: {e}", file=sys.stderr)
+        return False
+
+    return True
+
+
+def commit_processed_message(consumer: Consumer, raw_message: Any) -> bool:
+    """Synchronously commits an offset after processing has completed."""
+    try:
+        consumer.store_offsets(raw_message)
+        committed_offsets = consumer.commit(asynchronous=False)
+        failed_offsets = [
+            partition
+            for partition in committed_offsets or []
+            if partition.error is not None
+        ]
+        if failed_offsets:
+            print(f"[-] Kafka offset commit returned errors: {failed_offsets}", file=sys.stderr)
+            return False
+        return True
+    except Exception as e:
+        print(f"[-] Failed to commit Kafka offset: {e}", file=sys.stderr)
+        return False
+
+
+def retry_message_later(consumer: Consumer, raw_message: Any, delay_seconds: float = 2.0) -> None:
+    """Rewinds the consumer to the failed message so it can be retried."""
+    partition = TopicPartition(
+        raw_message.topic(),
+        raw_message.partition(),
+        raw_message.offset(),
+    )
+    consumer.seek(partition)
+    time.sleep(delay_seconds)
 
 
 def print_ingestion_log(record: Any) -> None:
@@ -74,7 +112,13 @@ def continuous_polling_stream(consumer: Consumer, db_pool) -> None:
         while True:
             # Poll network sockets for active wire messages
             msg = consumer.poll(timeout=1.0)
-            process_message_payload(msg, db_pool)
+            processing_result = process_message_payload(msg, db_pool)
+
+            if processing_result is True:
+                if not commit_processed_message(consumer, msg):
+                    retry_message_later(consumer, msg)
+            elif processing_result is False:
+                retry_message_later(consumer, msg)
 
     except KeyboardInterrupt:
         print("\n[*] Halting continuous processing pipeline workers...")

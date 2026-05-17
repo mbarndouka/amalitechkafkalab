@@ -63,6 +63,10 @@ Kafka auto-topic creation is disabled. The `kafka-init` service creates
 `KAFKA_TOPIC_NAME` explicitly using `KAFKA_TOPIC_PARTITIONS` and
 `KAFKA_TOPIC_REPLICATION_FACTOR` from `.env`.
 
+The consumer uses manual Kafka offset commits. A heartbeat message is committed
+only after it has been written to PostgreSQL; if the database write fails, the
+consumer seeks back to the failed message and retries instead of marking it done.
+
 ### Grafana Monitoring Dashboard
 
 ![Grafana Monitoring](./Grafana-monitoring.png)
